@@ -1,24 +1,52 @@
 # Housie
 
-A mobile-friendly Housie (Tambola) game for office teams. Everything is in a single `index.html` file with no build step.
+A mobile-friendly Housie (Tambola) game for office teams. It's a single `index.html` with no build step, and it can sync phones live through Firebase.
 
 ## How to play
 
-1. **Host:** open the page, tap **Host the game** and share the 4-letter game code.
-2. **Players:** open the page on their phones, tap **Join as player** and enter their name and the code to get a unique ticket.
-3. The host taps **Draw number**. Voice calling and auto-draw are optional.
-4. Players tap numbers on their ticket to mark them. When a pattern is complete, they claim it (or shout "Housie!").
-5. The host types the player's name under **Check ticket**. The same ticket is rebuilt from the name and code, and the page shows whether the claim is valid or a bogey.
+1. **Host:** open the page, tap **Host the game** and read out the 4-letter game code.
+2. **Players:** open the same link on their phones, tap **Join as player** and enter their name and the code to get a unique ticket.
+3. The host taps **Draw number**. Every player's phone shows the number live, with voice calling and auto-draw as options.
+4. Players tap numbers to mark them, or turn on **Auto-mark**. When a pattern is done, they tap **Claim**.
+5. The claim pops up on the host's screen. Tap **Verify** to see whether it's valid or a bogey, then **Award** it. The player's phone shows the result.
 
 **Prizes:** Early Five, Top Line, Middle Line, Bottom Line, Four Corners, Full House.
 
-## Hosting
+## One-time setup: live sync with Firebase (about 5 minutes, free)
 
-- **GitHub Pages:** in Settings → Pages, set the source to the `main` branch, root folder. The game will be live at `https://<user>.github.io/housie/`.
-- **Locally:** open `index.html` in any browser.
+1. Go to <https://console.firebase.google.com>, click **Add project**, name it `housie` and turn Analytics off.
+2. In the left menu, open **Build → Realtime Database → Create database**. Pick the **Singapore** location and choose **Start in test mode**.
+3. Open the **Rules** tab, paste the rules below and click **Publish**:
+   ```json
+   {
+     "rules": {
+       "games": {
+         "$code": { ".read": true, ".write": true }
+       }
+     }
+   }
+   ```
+4. Click the ⚙️ **Project settings** gear. Under **Your apps**, click the **Web `</>`** icon, register an app called `housie` (no hosting needed) and copy the `firebaseConfig` object.
+5. Paste it into `firebase-config.js`:
+   ```js
+   window.HOUSIE_FIREBASE = {
+     apiKey: "…",
+     authDomain: "…",
+     databaseURL: "https://….firebasedatabase.app",
+     projectId: "…",
+     // …the rest of the config
+   };
+   ```
+   `databaseURL` is required. If it's missing from the config, copy it from the top of the Realtime Database page.
+
+The free Spark plan allows 100 phones connected at once, which is plenty for office games. A Firebase web config isn't a secret, so it's fine to commit it.
+
+## Hosting on GitHub Pages
+
+In **Settings → Pages**, set the source to the `main` branch, root folder. The game will be live at `https://nikunj1980.github.io/housie/`.
 
 ## Notes
 
-- Tickets are generated from **game code + player name**. The same spelling always gives the same ticket, so the host can verify claims without a server.
-- Live sync between phones (called numbers, claims and auto-mark) only works when the page is opened as a Claude artifact. Hosted anywhere else, the game runs standalone: players listen to the host's calls and mark their tickets by hand.
-- Game progress and ticket marks are saved in each browser's local storage.
+- Tickets come from **game code + player name**. The same spelling always gives the same ticket, so the host can rebuild any ticket to check a claim.
+- Without Firebase config, the game still works without live sync: players listen to the host and mark their tickets by hand.
+- Progress and marks are also saved on each phone, so refreshing the page doesn't lose anything.

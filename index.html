@@ -313,6 +313,7 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
   </div>
 </main>
 
+<script src="firebase-config.js"></script>
 <script>
 (function(){
 "use strict";
@@ -385,28 +386,110 @@ function renderBoard(container,called,last){
 }
 function chips(container,list,light){container.innerHTML='';list.forEach(n=>container.appendChild(el('div','chip'+(light?' light':''),String(n))));}
 
-/* ---------- live room (lights up when available) ---------- */
-let room=null;const roomReady=[];
-function onRoom(fn){room?fn(room):roomReady.push(fn);}
-(async()=>{try{if(window.claude&&window.claude.use){const r=await window.claude.use('room');if(r){room=r;roomReady.splice(0).forEach(f=>{try{f(r);}catch(e){}});}}}catch(e){}})();
-let connected=false;const connListeners=[];
-onRoom(r=>{r.onConnection(c=>{connected=c;connListeners.forEach(f=>f(c));},()=>{connected=false;connListeners.forEach(f=>f(false));});});
-function onConn(f){connListeners.push(f);f(connected);}
+/* ---------- sync layer: Firebase (GitHub / any host) or Claude room (artifact) ---------- */
+function loadScript(src){return new Promise((res,rej)=>{const s=document.createElement('script');s.src=src;s.onload=res;s.onerror=rej;document.head.appendChild(s);});}
+const Sync=(function(){
+  const S={mode:null,connected:false};
+  let db=null,room=null;const readyL=[],connL=[];
+  function setConn(c){S.connected=!!c;connL.forEach(f=>{try{f(S.connected);}catch(e){}});}
+  S.onReady=f=>{S.mode?f():readyL.push(f);};
+  S.onConn=f=>{connL.push(f);f(S.connected);};
+  function ready(m){S.mode=m;readyL.splice(0).forEach(f=>{try{f();}catch(e){console.error(e);}});}
+  (async()=>{
+    const cfg=window.HOUSIE_FIREBASE;
+    if(cfg&&cfg.databaseURL){
+      try{
+        await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js');
+        await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
+        firebase.initializeApp(cfg);db=firebase.database();
+        db.ref('.info/connected').on('value',s=>setConn(s.val()===true));
+        ready('fb');return;
+      }catch(e){console.warn('Firebase unavailable',e);}
+    }
+    try{if(window.claude&&window.claude.use){const r=await window.claude.use('room');if(r){room=r;r.onConnection(setConn,()=>setConn(false));ready('room');}}}catch(e){}
+  })();
+
+  /* ---- host ---- */
+  let hostOff=null,lastState=null,roomTimer=null;
+  S.hostWatch=function(code,onPlayers){
+    if(hostOff){hostOff();hostOff=null;}
+    if(S.mode==='fb'){
+      const ref=db.ref('games/'+code+'/players');
+      const h=snap=>{const v=snap.val()||{};onPlayers(Object.entries(v).map(([id,p])=>({id,name:String(p.name||'').slice(0,28),claim:p.claim||null,online:p.online!==false})));};
+      ref.on('value',h);hostOff=()=>ref.off('value',h);
+    }else if(S.mode==='room'){
+      room.presence({role:'host'}).catch(()=>{});
+      const un=room.onPeers(ch=>{
+        if(ch.joined.length&&lastState)room.emit('state',lastState).catch(()=>{});
+        onPlayers(ch.peers.filter(p=>p.presence&&p.presence.role==='player'&&p.presence.code===code).map(p=>({id:p.peer,name:String(p.presence.name||'').slice(0,28),claim:p.presence.claim||null,online:true})));
+      });
+      if(!roomTimer)roomTimer=setInterval(()=>{if(lastState)room.emit('state',lastState).catch(()=>{});},8000);
+      hostOff=un;
+    }
+  };
+  S.hostPublish=function(state){
+    lastState=state;
+    if(S.mode==='fb')return db.ref('games/'+state.code+'/state').set(Object.assign({},state,{updated:firebase.database.ServerValue.TIMESTAMP})).catch(e=>{console.warn(e);toast('Sync failed: check Firebase database rules','bad',4000);});
+    if(S.mode==='room')return room.emit('state',state).catch(()=>{});
+  };
+
+  /* ---- player ---- */
+  let playerOff=null,meRef=null,meCode=null,mePid=null;
+  S.playerWatch=function(code,onState){
+    if(playerOff){playerOff();playerOff=null;}
+    if(S.mode==='fb'){
+      const ref=db.ref('games/'+code+'/state');const h=snap=>{const v=snap.val();if(v)onState(v);};
+      ref.on('value',h);playerOff=()=>ref.off('value',h);
+    }else if(S.mode==='room'){
+      playerOff=room.on('state',msg=>{const d=msg&&msg.data;if(d&&typeof d==='object')onState(d);});
+    }
+  };
+  S.gameExists=async function(code){
+    if(S.mode!=='fb')return true;
+    try{const s=await Promise.race([db.ref('games/'+code+'/state').once('value'),new Promise((_,r)=>setTimeout(r,6000))]);return s.exists();}catch(e){return true;}
+  };
+  S.playerSet=function(code,pid,data){
+    if(S.mode==='fb'){
+      if(!meRef||meCode!==code||mePid!==pid){
+        meCode=code;mePid=pid;meRef=db.ref('games/'+code+'/players/'+pid);
+        meRef.onDisconnect().update({online:false});
+        db.ref('.info/connected').on('value',s=>{if(s.val()===true&&meRef){meRef.onDisconnect().update({online:false});meRef.update({online:true});}});
+      }
+      return meRef.update(Object.assign({online:true},data)).catch(()=>{});
+    }
+    if(S.mode==='room')return room.presence(Object.assign({role:'player',code},data)).catch(()=>{});
+  };
+  S.playerLeave=function(code,pid){
+    if(playerOff){playerOff();playerOff=null;}
+    if(S.mode==='fb'&&meRef){const r=meRef;meRef=null;r.onDisconnect().cancel();r.remove().catch(()=>{});}
+    if(S.mode==='room')room.presence({role:null,name:null,code:null,tid:null,claim:null}).catch(()=>{});
+  };
+  /* lobby hint: in the Claude room, players can see the host's current code */
+  S.watchAny=function(cb){S.onReady(()=>{if(S.mode==='room')room.on('state',m=>{const d=m&&m.data;if(d&&d.code)cb(String(d.code));});});};
+  return S;
+})();
+function liveLabel(c){return !Sync.mode?'Offline':c?'Live':'Connecting…';}
+function cleanState(d){
+  if(!d||typeof d!=='object')return null;
+  const called=(Array.isArray(d.called)?d.called:d.called&&typeof d.called==='object'?Object.values(d.called):[]).filter(n=>Number.isInteger(n)&&n>=1&&n<=90);
+  const bog=Array.isArray(d.bogeys)?d.bogeys:d.bogeys&&typeof d.bogeys==='object'?Object.values(d.bogeys):[];
+  return {code:String(d.code||'').toUpperCase().slice(0,4),called,prizes:(d.prizes&&typeof d.prizes==='object')?d.prizes:{},bogeys:bog};
+}
 
 /* =====================================================================
    HOST
    ===================================================================== */
 const HKEY='tambola-host-v1';
-let H=null,autoTimer=null,voice=true,hostPeers=[],hostWired=false,canEmit=true;
-const pendingClaims=new Map(); // key -> {peer,name,prize,at,tid}
+let H=null,autoTimer=null,voice=true,hostWired=false;
+const pendingClaims=new Map();
 function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
 function freshHost(){return {code:newCode(),called:[],prizes:{},bogeys:[],handled:[],epoch:Date.now()};}
 function saveHost(){store.set(HKEY,H);}
 function startHost(){
   H=store.get(HKEY)||freshHost();if(!H.handled)H.handled=[];if(!H.bogeys)H.bogeys=[];
   show('host');store.set('tambola-mode','host');renderHost();
-  if(!hostWired){hostWired=true;wireHostRoom();}
-  emitState();
+  if(!hostWired){hostWired=true;Sync.onConn(c=>setLive('hLive',c&&!!Sync.mode,liveLabel(c)));}
+  Sync.onReady(()=>{Sync.hostWatch(H.code,onHostPlayers);emitState();});
 }
 function last(){return H.called[H.called.length-1];}
 function renderHost(){
@@ -419,17 +502,34 @@ function renderHost(){
   renderBoard($('hBoard'),H.called,l);
   $('drawBtn').disabled=H.called.length>=90;
   $('drawBtn').textContent=H.called.length>=90?'All numbers called':'Draw number';
-  // prizes
   const pz=$('hPrizes');pz.innerHTML='';
   PRIZES.forEach(p=>{const w=H.prizes[p.k];const row=el('div','prize'+(w?' won':''));row.appendChild(el('div','trophy',w?'🏆':'🎁'));const tx=el('div');tx.appendChild(el('div','pn',p.n));tx.appendChild(el('div','hint',p.d));row.appendChild(tx);row.appendChild(el('div','pw',w?w:'Open'));pz.appendChild(row);});
   renderClaims();
 }
 function renderClaims(){
   const box=$('hClaims');box.innerHTML='';
-  const list=[...pendingClaims.values()].filter(c=>!H.handled.includes(c.key));
+  const list=[...pendingClaims.values()].filter(c=>!H.handled.includes(c.key)&&!H.prizes[c.prize]);
   $('hClaimCount').textContent=list.length?list.length+' waiting':'';
   if(!list.length){box.appendChild(el('div','empty','Claims from players\' phones show up here.'));return;}
   list.forEach(c=>{const r=el('div','claim');const t=el('div');t.appendChild(el('div','who',c.name));t.appendChild(el('div','what','claims '+(PNAME[c.prize]||c.prize)));r.appendChild(t);const b=el('button','btn primary sm','Verify');b.onclick=()=>verify(c.name,c.prize,c.key);r.appendChild(b);box.appendChild(r);});
+}
+function onHostPlayers(list){
+  if(!H)return;
+  const names=[];
+  list.forEach(p=>{
+    if(p.online&&p.name)names.push(p.name);
+    const cl=p.claim;
+    if(cl&&cl.prize&&cl.at&&PNAME[cl.prize]){
+      const key=p.id+'|'+cl.prize+'|'+cl.at;
+      if(!pendingClaims.has(key)&&!H.prizes[cl.prize]&&!H.handled.includes(key)){pendingClaims.set(key,{key,name:p.name,prize:cl.prize,at:cl.at});toast('🙋 '+p.name+' claims '+PNAME[cl.prize]);if(voice)say(p.name+' claims '+PNAME[cl.prize]);}
+    }
+  });
+  const box=$('hPlayers');box.innerHTML='';
+  const uniq=[...new Set(names)].sort((a,b)=>a.localeCompare(b));
+  $('hPCount').textContent=uniq.length||'';
+  if(!uniq.length)box.appendChild(el('div','empty','No players yet. Share the link and the game code '+H.code+'.'));
+  uniq.forEach(n=>box.appendChild(el('span',null,n)));
+  renderClaims();
 }
 function draw(){
   if(H.called.length>=90)return stopAuto();
@@ -442,51 +542,26 @@ function draw(){
 }
 function say(t){try{const s=window.speechSynthesis;if(!s)return;s.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-IN';u.rate=.92;const v=s.getVoices().find(v=>/en[-_]IN/i.test(v.lang));if(v)u.voice=v;s.speak(u);}catch(e){}}
 function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}$('autoSel').value='0';}
-function emitState(){
-  if(!room||!H)return;
-  const data={code:H.code,called:H.called,prizes:H.prizes,bogeys:H.bogeys.slice(-8),epoch:H.epoch};
-  room.emit('state',data).then(()=>{canEmit=true;},e=>{if(e&&e.code==='not_permitted'){canEmit=false;setLive('hLive',false,'Sync needs edit access');}});
-}
-function wireHostRoom(){
-  onConn(c=>{if($('host').classList.contains('hidden'))return;setLive('hLive',c&&canEmit,c?(canEmit?'Live':'Sync needs edit access'):'Offline');});
-  onRoom(r=>{
-    r.presence({role:'host'}).catch(()=>{});
-    r.onPeers(ch=>{
-      hostPeers=ch.peers;
-      if(ch.joined.length)emitState();
-      if(!H)return;
-      const names=[];
-      ch.peers.forEach(p=>{const pr=p.presence||{};if(pr.role==='player'&&pr.code===H.code&&pr.name){names.push(String(pr.name).slice(0,28));
-        if(pr.claim&&pr.claim.prize&&pr.claim.at){const key=p.peer+'|'+pr.claim.prize+'|'+pr.claim.at;if(!pendingClaims.has(key)&&!H.prizes[pr.claim.prize]){pendingClaims.set(key,{key,name:String(pr.name).slice(0,28),prize:pr.claim.prize,at:pr.claim.at});if(!H.handled.includes(key)){toast('🙋 '+String(pr.name).slice(0,28)+' claims '+(PNAME[pr.claim.prize]||'a prize'));}}}}
-      });
-      const box=$('hPlayers');box.innerHTML='';
-      $('hPCount').textContent=names.length?names.length:'';
-      if(!names.length)box.appendChild(el('div','empty','No players connected yet. Share the page link and the game code.'));
-      [...new Set(names)].sort().forEach(n=>box.appendChild(el('span',null,n)));
-      renderClaims();
-    });
-    setInterval(emitState,8000);
-  });
-}
+function emitState(){if(!H||!Sync.mode)return;Sync.hostPublish({code:H.code,called:H.called,prizes:H.prizes,bogeys:H.bogeys.slice(-8),epoch:H.epoch});}
 function verify(name,prize,claimKey){
   name=String(name||'').trim();if(!name){toast('Type a player name');return;}
   const t=makeTicket(H.code,name);const called=new Set(H.called);
-  let sel=prize||PRIZES.find(p=>!H.prizes[p.k])?.k||'full';
+  let sel=prize||(PRIZES.find(p=>!H.prizes[p.k])||{k:'full'}).k;
   modal((m,close)=>{
     m.appendChild(el('h2',null,'Check ticket'));
-    const sub=el('p',null,name+' · Ticket #'+t.id+' · game '+H.code);m.appendChild(sub);
+    m.appendChild(el('p',null,name+' · Ticket #'+t.id+' · game '+H.code));
     const tw=el('div','ticket-wrap');const tk=el('div','ticket verify');tw.appendChild(tk);m.appendChild(tw);
     renderTicket(tk,t.grid,{called});
     const ps=el('div','prize-sel');m.appendChild(ps);
     const verdict=el('div','verdict');m.appendChild(verdict);
     const acts=el('div','acts');const bBog=el('button','btn danger','Bogey');const bAw=el('button','btn ok','Award prize');acts.append(bBog,bAw);m.appendChild(acts);
     const cl=el('button','btn ghost block','Close');cl.style.marginTop='8px';cl.onclick=()=>close();m.appendChild(cl);
-    const draw=()=>{ps.innerHTML='';PRIZES.forEach(p=>{const b=el('button',p.k===sel?'on':'',p.n+(H.prizes[p.k]?' ✓':''));b.onclick=()=>{sel=p.k;draw();};ps.appendChild(b);});
+    const paint=()=>{ps.innerHTML='';PRIZES.forEach(p=>{const b=el('button',p.k===sel?'on':'',p.n+(H.prizes[p.k]?' ✓':''));b.onclick=()=>{sel=p.k;paint();};ps.appendChild(b);});
       const ok=checkPrize(t.grid,sel,called);const taken=H.prizes[sel];
       verdict.className='verdict '+(ok&&!taken?'y':'n');
       verdict.textContent=taken?(PNAME[sel]+' already won by '+taken):(ok?'✓ Valid '+PNAME[sel]+'!':'✗ Not complete. That\'s a bogey for '+PNAME[sel]+'.');
       bAw.disabled=!ok||!!taken;};
-    draw();
+    paint();
     bAw.onclick=()=>{H.prizes[sel]=name;if(claimKey)H.handled.push(claimKey);saveHost();renderHost();emitState();toast('🏆 '+PNAME[sel]+' goes to '+name,'win');if(voice)say(PNAME[sel]+' goes to '+name+'!');close();};
     bBog.onclick=()=>{H.bogeys.push({name,prize:sel,at:Date.now()});if(claimKey)H.handled.push(claimKey);saveHost();renderHost();emitState();toast('Bogey for '+name,'bad');close();};
   });
@@ -494,34 +569,39 @@ function verify(name,prize,claimKey){
 $('drawBtn').onclick=draw;
 $('autoSel').onchange=e=>{const s=+e.target.value;if(autoTimer){clearInterval(autoTimer);autoTimer=null;}if(s){draw();autoTimer=setInterval(draw,s*1000);}};
 $('voiceBtn').onclick=e=>{voice=!voice;e.currentTarget.classList.toggle('on',voice);e.currentTarget.textContent=voice?'🔊 Voice on':'🔇 Voice off';if(!voice)try{speechSynthesis.cancel();}catch(_){}};
-$('undoBtn').onclick=async()=>{if(!H.called.length)return;const n=last();if(await confirmBox('Undo last number?','Remove '+n+' from the called list.','Undo'))
-  {H.called.pop();saveHost();renderHost();emitState();}};
+$('undoBtn').onclick=async()=>{if(!H.called.length)return;const n=last();if(await confirmBox('Undo last number?','Remove '+n+' from the called list.','Undo')){H.called.pop();saveHost();renderHost();emitState();}};
 $('vBtn').onclick=()=>verify($('vName').value);
 $('vName').addEventListener('keydown',e=>{if(e.key==='Enter')verify($('vName').value);});
-$('newGameBtn').onclick=async()=>{if(await confirmBox('Start a new game?','This clears the board and prizes and creates a new game code. Players will need to rejoin with the new code.','New game','Cancel',true)){stopAuto();H=freshHost();pendingClaims.clear();saveHost();renderHost();emitState();toast('New game · code '+H.code);}};
+$('newGameBtn').onclick=async()=>{if(await confirmBox('Start a new game?','This clears the board and prizes and creates a new game code. Players will need to rejoin with the new code.','New game','Cancel',true)){stopAuto();H=freshHost();pendingClaims.clear();saveHost();renderHost();Sync.onReady(()=>{Sync.hostWatch(H.code,onHostPlayers);emitState();});toast('New game · code '+H.code);}};
 $('hExit').onclick=()=>{stopAuto();store.del('tambola-mode');show('home');};
 
 /* =====================================================================
    PLAYER
    ===================================================================== */
 const PKEY='tambola-player-v1';
-let P=null,live=null,playerWired=false,lastAwardSeen={},lastBogeySeen=0;
+let P=null,live=null,playerWired=false,lastBogeySeen=0,lobbyCode=null;
+function pid(){let id=store.get('housie-pid');if(!id){id='p'+Math.random().toString(36).slice(2,12);store.set('housie-pid',id);}return id;}
 function startJoin(){
   const s=store.get(PKEY);show('pjoin');
   if(s){$('pName').value=s.name||'';if(!$('pCode').value)$('pCode').value=s.code||'';}
-  if(live&&live.code&&!$('pCode').value){$('pCode').value=live.code;}
-  updateCodeHint();
-  if(!playerWired){playerWired=true;wirePlayerRoom();}
+  if(lobbyCode&&!$('pCode').value)$('pCode').value=lobbyCode;
+  updateCodeHint();wirePlayer();
 }
-function updateCodeHint(){$('pCodeHint').textContent=live&&live.code?('Host\'s current game code: '+live.code):'Ask the host for the 4-letter code.';}
-function join(){
+function updateCodeHint(){$('pCodeHint').textContent=lobbyCode?('Host\'s current game code: '+lobbyCode):'Ask the host for the 4-letter code.';}
+async function join(){
   const name=$('pName').value.trim().replace(/\s+/g,' ');const code=$('pCode').value.trim().toUpperCase();
   if(name.length<2){toast('Enter your name');return;}
   if(!/^[A-Z0-9]{4}$/.test(code)){toast('Enter the 4-letter game code');return;}
+  if(Sync.mode==='fb'){
+    $('joinBtn').disabled=true;$('joinBtn').textContent='Checking code…';
+    const ok=await Sync.gameExists(code);
+    $('joinBtn').disabled=false;$('joinBtn').textContent='Get my ticket';
+    if(!ok){toast('No game found with code '+code+'. Check with the host.','bad',3500);return;}
+  }
   const prev=store.get(PKEY);
   const same=prev&&prev.code===code&&normName(prev.name)===normName(name);
-  P={name,code,marks:same?prev.marks:[],auto:prev?!!prev.auto:false,showBoard:prev?!!prev.showBoard:false,claims:same&&prev.claims?prev.claims:{}};
-  enterGame();
+  P={name,code,marks:same?prev.marks:[],auto:prev?!!prev.auto:false,showBoard:prev?!!prev.showBoard:false,joinedAt:Date.now()};
+  live=null;enterGame();
 }
 function savePlayer(){store.set(PKEY,P);}
 let T=null;
@@ -530,27 +610,39 @@ function enterGame(){
   show('pgame');$('pHello').textContent=P.name;$('pGameCode').textContent=P.code;$('pTid').textContent=T.id;
   renderTicket($('pTicket'),T.grid,{marked:new Set(P.marks)});
   $('autoMarkSw').classList.toggle('on',P.auto);$('boardSw').classList.toggle('on',P.showBoard);
-  if(!playerWired){playerWired=true;wirePlayerRoom();}
-  publishPresence();renderPlayer();
+  wirePlayer();
+  Sync.onReady(()=>{if(!P)return;Sync.playerWatch(P.code,onLiveState);Sync.playerSet(P.code,pid(),{name:P.name.slice(0,28),tid:T.id,claim:P.pending?{prize:P.pending,at:P.pendingAt||Date.now()}:null});});
+  renderPlayer();
+}
+function wirePlayer(){
+  if(playerWired)return;playerWired=true;
+  Sync.onConn(c=>{['pjLive','pLive'].forEach(id=>setLive(id,c&&!!Sync.mode,liveLabel(c)));renderPlayer();});
+  Sync.watchAny(code=>{lobbyCode=code;if(!$('pjoin').classList.contains('hidden')){if(!$('pCode').value)$('pCode').value=code;updateCodeHint();}if(P)renderPlayer();});
+}
+function onLiveState(raw){
+  const d=cleanState(raw);if(!d||!P||d.code!==P.code)return;
+  live=d;
+  if(P.pending&&live.prizes[P.pending]){const mine=normName(live.prizes[P.pending])===normName(P.name);toast(mine?'🏆 You won '+PNAME[P.pending]+'!':PNAME[P.pending]+' went to '+live.prizes[P.pending],mine?'win':null,4000);P.pending=null;savePlayer();Sync.playerSet(P.code,pid(),{claim:null});}
+  live.bogeys.forEach(b=>{if(b&&normName(b.name)===normName(P.name)&&b.at>lastBogeySeen&&b.at>(P.joinedAt||0)){lastBogeySeen=b.at;toast('❌ Bogey! The host rejected your '+(PNAME[b.prize]||'')+' claim','bad',4000);if(P.pending===b.prize){P.pending=null;savePlayer();Sync.playerSet(P.code,pid(),{claim:null});}}});
+  renderPlayer();
 }
 function liveForMe(){return live&&P&&live.code===P.code?live:null;}
 function renderPlayer(){
   if(!P||$('pgame').classList.contains('hidden'))return;
   const L=liveForMe();const called=L?L.called:[];const cset=new Set(called);
   $('pLast').classList.toggle('hidden',!L);$('pOffline').classList.toggle('hidden',!!L);
-  if(live&&live.code&&live.code!==P.code){$('pOffline').classList.remove('hidden');$('pOffline').textContent='The host is running game '+live.code+' now. Tap "Leave game" and rejoin with the new code.';}
-  else $('pOffline').textContent='Listen for the host\'s calls and tap the numbers on your ticket. Numbers show here live when the host\'s page is connected.';
+  if(lobbyCode&&lobbyCode!==P.code){$('pOffline').classList.remove('hidden');$('pOffline').textContent='The host is running game '+lobbyCode+' now. Tap "Leave game" and rejoin with the new code.';}
+  else if(Sync.mode==='fb'&&!L)$('pOffline').textContent='Connected. Waiting for the host to draw the first number…';
+  else $('pOffline').textContent='Listen for the host\'s calls and tap the numbers on your ticket. Numbers show here live when you\'re connected.';
   if(L){const l=called[called.length-1];$('pLastNum').textContent=l||'–';$('pLastPhrase').textContent=l?phrase(l):'Waiting for first number…';$('pCalledCount').textContent=called.length;chips($('pRecent'),called.slice(-6,-1).reverse());}
-  // auto mark
   if(L&&P.auto){let ch=false;ticketNums(T.grid).forEach(n=>{if(cset.has(n)&&!P.marks.includes(n)){P.marks.push(n);ch=true;}});if(ch)savePlayer();}
   const mset=new Set(P.marks);
   [...$('pTicket').children].forEach(c=>{const n=+c.dataset.n;if(!n)return;c.classList.toggle('m',mset.has(n));c.classList.toggle('miss',!!L&&cset.has(n)&&!mset.has(n));});
   $('pBoardCard').classList.toggle('hidden',!P.showBoard);
   if(P.showBoard)renderBoard($('pBoard'),called,called[called.length-1]);
-  // claims
   const box=$('pClaims');box.innerHTML='';
   const effective=new Set(L?P.marks.filter(n=>cset.has(n)):P.marks);
-  const prizes=L?L.prizes||{}:{};
+  const prizes=L?L.prizes:{};
   PRIZES.forEach(p=>{
     const w=prizes[p.k];const mine=w&&normName(w)===normName(P.name);const ready=!w&&checkPrize(T.grid,p.k,effective);const pend=!w&&P.pending===p.k;
     const b=el('button','cbtn'+(mine?' mine':w?' done':pend?' pending':ready?' ready':''));
@@ -558,45 +650,20 @@ function renderPlayer(){
     b.appendChild(el('small',null,mine?'You won this!':w?'Won by '+w:pend?'Claim sent… waiting for host':ready?'Ready to claim!':p.d));
     b.disabled=!!w||pend;b.onclick=()=>claim(p.k,ready);box.appendChild(b);
   });
-  $('pClaimHint').textContent=room&&connected?'Claims go straight to the host\'s screen.':'Not connected live. Shout "Housie!" and tell the host your name to claim.';
+  $('pClaimHint').textContent=Sync.mode&&Sync.connected?'Claims go straight to the host\'s screen.':'Not connected live. Shout "Housie!" and tell the host your name to claim.';
 }
 async function claim(k,ready){
   if(!ready){const ok=await confirmBox('Not complete yet','Your marked numbers don\'t complete '+PNAME[k]+' yet. A wrong claim is a bogey. Claim anyway?','Claim anyway','Cancel',true);if(!ok)return;}
-  if(!(room&&connected)){toast('Shout "Housie!" and tell the host: '+P.name+' · '+PNAME[k],null,4000);return;}
-  P.pending=k;savePlayer();publishPresence({prize:k,at:Date.now()});renderPlayer();toast('Claim sent for '+PNAME[k]);
+  if(!(Sync.mode&&Sync.connected)){toast('Shout "Housie!" and tell the host: '+P.name+' · '+PNAME[k],null,4000);return;}
+  P.pending=k;P.pendingAt=Date.now();savePlayer();Sync.playerSet(P.code,pid(),{claim:{prize:k,at:P.pendingAt}});renderPlayer();toast('Claim sent for '+PNAME[k]);
 }
-function publishPresence(claimObj){
-  if(!room||!P)return;
-  const patch={role:'player',name:P.name.slice(0,28),code:P.code,tid:T?T.id:''};
-  if(claimObj!==undefined)patch.claim=claimObj;
-  room.presence(patch).catch(()=>{});
-}
-function wirePlayerRoom(){
-  onConn(c=>{['pjLive','pLive'].forEach(id=>setLive(id,c&&!!live,c?(live?'Live':'Connected'):'Offline'));renderPlayer();});
-  onRoom(r=>{
-    r.on('state',msg=>{
-      const d=msg&&msg.data;if(!d||typeof d!=='object'||!Array.isArray(d.called))return;
-      live={code:String(d.code||'').toUpperCase().slice(0,4),called:d.called.filter(n=>Number.isInteger(n)&&n>=1&&n<=90),prizes:(d.prizes&&typeof d.prizes==='object')?d.prizes:{},bogeys:Array.isArray(d.bogeys)?d.bogeys:[]};
-      ['pjLive','pLive'].forEach(id=>setLive(id,true,'Live'));
-      if(!$('pjoin').classList.contains('hidden')){if(!$('pCode').value)$('pCode').value=live.code;updateCodeHint();}
-      if(P&&live.code===P.code){
-        // award / bogey feedback
-        if(P.pending&&live.prizes[P.pending]){const mine=normName(live.prizes[P.pending])===normName(P.name);toast(mine?'🏆 You won '+PNAME[P.pending]+'!':PNAME[P.pending]+' went to '+live.prizes[P.pending],mine?'win':null,4000);P.pending=null;savePlayer();publishPresence(null);}
-        Object.entries(live.prizes).forEach(([k,w])=>{if(normName(w)===normName(P.name)&&!lastAwardSeen[k]){lastAwardSeen[k]=1;}});
-        live.bogeys.forEach(b=>{if(b&&normName(b.name)===normName(P.name)&&b.at>lastBogeySeen&&b.at>(P.joinedAt||0)){lastBogeySeen=b.at;toast('❌ Bogey! The host rejected your '+(PNAME[b.prize]||'')+' claim','bad',4000);if(P.pending===b.prize){P.pending=null;savePlayer();publishPresence(null);}}});
-      }
-      renderPlayer();
-    });
-    if(P)publishPresence(null);
-  });
-}
-$('pTicket').addEventListener('click',e=>{const c=e.target.closest('.cell.n');if(!c)return;const n=+c.dataset.n;const i=P.marks.indexOf(n);if(i>=0)P.marks.splice(i,1);else P.marks.push(n);savePlayer();renderPlayer();if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}});
-$('autoMarkSw').onclick=()=>{P.auto=!P.auto;$('autoMarkSw').classList.toggle('on',P.auto);savePlayer();renderPlayer();if(P.auto&&!liveForMe())toast('Auto-mark works when the host is connected live');};
+$('pTicket').addEventListener('click',e=>{const c=e.target.closest('.cell.n');if(!c||!P)return;const n=+c.dataset.n;const i=P.marks.indexOf(n);if(i>=0)P.marks.splice(i,1);else P.marks.push(n);savePlayer();renderPlayer();if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}});
+$('autoMarkSw').onclick=()=>{P.auto=!P.auto;$('autoMarkSw').classList.toggle('on',P.auto);savePlayer();renderPlayer();if(P.auto&&!liveForMe())toast('Auto-mark starts once the host draws numbers live');};
 $('boardSw').onclick=()=>{P.showBoard=!P.showBoard;$('boardSw').classList.toggle('on',P.showBoard);savePlayer();renderPlayer();};
 $('clearMarks').onclick=async()=>{if(await confirmBox('Clear all marks?','Unmarks every number on your ticket.','Clear','Cancel',true)){P.marks=[];savePlayer();renderPlayer();}};
-$('pLeave').onclick=async()=>{if(await confirmBox('Leave this game?','You can rejoin later with the same name and code to get the same ticket back.','Leave','Stay')){if(room)room.presence({role:null,name:null,code:null,tid:null,claim:null}).catch(()=>{});store.del('tambola-mode');P=null;show('home');}};
-$('joinBtn').onclick=()=>{join();if(P)P.joinedAt=Date.now();};
-$('pCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('joinBtn').click();});
+$('pLeave').onclick=async()=>{if(await confirmBox('Leave this game?','You can rejoin later with the same name and code to get the same ticket back.','Leave','Stay')){Sync.playerLeave(P.code,pid());store.del('tambola-mode');P=null;live=null;show('home');}};
+$('joinBtn').onclick=()=>join();
+$('pCode').addEventListener('keydown',e=>{if(e.key==='Enter')join();});
 $('pjBack').onclick=()=>show('home');
 
 /* ---------- home ---------- */
@@ -604,7 +671,7 @@ $('goHost').onclick=startHost;
 $('goPlayer').onclick=startJoin;
 const mode=store.get('tambola-mode');
 if(mode==='host'&&store.get(HKEY))startHost();
-else if(mode==='player'&&store.get(PKEY)&&store.get(PKEY).name){P=store.get(PKEY);P.pending=null;enterGame();}
+else if(mode==='player'&&store.get(PKEY)&&store.get(PKEY).name){P=store.get(PKEY);enterGame();}
 })();
 </script>
 </body>
