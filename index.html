@@ -316,7 +316,7 @@ label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:1
   </div>
 </main>
 
-<script src="firebase-config.js"></script>
+<script src="firebase-config.js?v=2"></script>
 <script>
 (function(){
 "use strict";
@@ -332,7 +332,11 @@ function speakText(n){return n<10?(CALLS[n]?CALLS[n]+". ":"")+"Number "+n:(CALLS
 function toast(msg,kind,ms){const t=el('div','toast'+(kind?' '+kind:''),msg);document.body.appendChild(t);setTimeout(()=>t.remove(),ms||2600);}
 function modal(build){return new Promise(res=>{const s=el('div','scrim');const m=el('div','modal');s.appendChild(m);const close=v=>{s.remove();res(v);};build(m,close);s.addEventListener('click',e=>{if(e.target===s)close(null);});document.body.appendChild(s);});}
 function confirmBox(title,body,yes,no,danger){return modal((m,close)=>{m.appendChild(el('h2',null,title));m.appendChild(el('p',null,body));const a=el('div','acts');const b1=el('button','btn ghost',no||'Cancel');const b2=el('button','btn '+(danger?'danger':'primary'),yes||'OK');b1.onclick=()=>close(false);b2.onclick=()=>close(true);a.append(b1,b2);m.appendChild(a);});}
-function show(id){['home','host','pjoin','pgame'].forEach(x=>$(x).classList.toggle('hidden',x!==id));window.scrollTo(0,0);}
+function show(id){['home','host','pjoin','pgame'].forEach(x=>$(x).classList.toggle('hidden',x!==id));window.scrollTo(0,0);wake(id==='host'||id==='pgame');}
+/* keep the phone screen awake during a game so auto-draw and live numbers don't stop */
+let wakeWant=false,wakeLock=null;
+async function wake(on){wakeWant=on;try{if(on&&!wakeLock&&navigator.wakeLock&&document.visibilityState==='visible'){wakeLock=await navigator.wakeLock.request('screen');wakeLock.addEventListener('release',()=>{wakeLock=null;});}else if(!on&&wakeLock){const w=wakeLock;wakeLock=null;await w.release();}}catch(e){}}
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='visible'&&wakeWant)wake(true);});
 function setLive(pillId,on,label){const p=$(pillId);p.classList.toggle('on',!!on);p.lastElementChild.textContent=label||(on?'Live':'Offline');}
 
 /* ---------- ticket generation (deterministic from code + name) ---------- */
