@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Housie</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Baloo+2:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#FFF7E8; --ink:#1E1B3A; --muted:#6C6888; --card:#FFFFFF; --line:#EEDFC4;
+  --brand:#2C2875; --brand2:#4A43C4; --gold:#F4A21F; --gold-soft:#FFE6B3;
+  --pink:#E6457B; --green:#18946A; --green-soft:#DDF4EA; --red:#D23F3F; --red-soft:#FBE3E3;
+  --r:18px; --shadow:0 1px 2px rgba(30,27,58,.06),0 6px 20px rgba(30,27,58,.07);
+}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.45 Inter,system-ui,-apple-system,sans-serif;-webkit-tap-highlight-color:transparent}
+body{padding:env(safe-area-inset-top) env(safe-area-inset-right) env(safe-area-inset-bottom) env(safe-area-inset-left);min-height:100vh}
+button,input,select{font:inherit;color:inherit}
+button{cursor:pointer;border:0;background:none}
+.hidden{display:none!important}
+.wrap{max-width:540px;margin:0 auto;padding:14px 14px 40px}
+.wrap.wide{max-width:1180px}
+.num-font{font-family:"Baloo 2",Inter,sans-serif}
+
+/* top bar */
+.bar{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
+.logo{font-family:"Baloo 2";font-weight:800;font-size:22px;color:var(--brand);letter-spacing:.2px;margin-right:auto;display:flex;align-items:center;gap:8px}
+.logo .dot{width:26px;height:26px;border-radius:50%;background:radial-gradient(circle at 35% 35%,#FFD27A,var(--gold) 60%,#D9850A);display:grid;place-items:center;color:#5B3500;font-size:13px;box-shadow:inset 0 -2px 0 rgba(0,0,0,.12)}
+.pill{display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:#fff;border:1px solid var(--line);font-size:12.5px;font-weight:600;color:var(--muted);white-space:nowrap}
+.pill .led{width:8px;height:8px;border-radius:50%;background:#B9B5CC}
+.pill.on .led{background:var(--green);box-shadow:0 0 0 3px rgba(24,148,106,.18)}
+.pill.on{color:var(--green)}
+.pill.code{background:var(--brand);color:#fff;border-color:var(--brand);letter-spacing:1.5px}
+
+.card{background:var(--card);border-radius:var(--r);box-shadow:var(--shadow);padding:16px;margin-bottom:14px}
+.card h3{margin:0 0 10px;font-size:13px;text-transform:uppercase;letter-spacing:1px;color:var(--muted);font-weight:700;display:flex;align-items:center;gap:8px}
+.card h3 .count{margin-left:auto;text-transform:none;letter-spacing:0;font-weight:600}
+
+.btn{display:inline-flex;align-items:center;justify-content:center;gap:8px;padding:12px 16px;border-radius:14px;font-weight:700;transition:transform .08s ease,background .15s}
+.btn:active{transform:scale(.97)}
+.btn.primary{background:var(--brand);color:#fff}
+.btn.primary:hover{background:var(--brand2)}
+.btn.gold{background:var(--gold);color:#3D2400}
+.btn.ghost{background:#fff;border:1px solid var(--line);color:var(--ink)}
+.btn.danger{background:var(--red-soft);color:var(--red)}
+.btn.ok{background:var(--green);color:#fff}
+.btn.sm{padding:8px 12px;border-radius:11px;font-size:13.5px}
+.btn.block{width:100%}
+.btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+/* home */
+.hero{text-align:center;padding:28px 6px 10px}
+.hero .balls{display:flex;justify-content:center;gap:8px;margin-bottom:14px}
+.ball{width:48px;height:48px;border-radius:50%;display:grid;place-items:center;font-family:"Baloo 2";font-weight:800;font-size:22px;color:#fff;box-shadow:inset 0 -4px 0 rgba(0,0,0,.15),0 4px 10px rgba(0,0,0,.08)}
+.hero h1{font-family:"Baloo 2";font-weight:800;font-size:40px;line-height:1;margin:0 0 6px;color:var(--brand)}
+.hero p{margin:0 auto;color:var(--muted);max-width:340px}
+.role{display:flex;gap:14px;align-items:center;text-align:left;width:100%;padding:18px;border-radius:var(--r);background:#fff;box-shadow:var(--shadow);margin-top:12px;border:2px solid transparent}
+.role:hover{border-color:var(--gold-soft)}
+.role .ic{width:52px;height:52px;border-radius:14px;display:grid;place-items:center;font-size:26px;flex:none}
+.role b{display:block;font-size:17px}
+.role span{color:var(--muted);font-size:13.5px}
+.how{font-size:13.5px;color:var(--muted);padding-left:18px;margin:6px 0 0}
+.how li{margin:4px 0}
+
+/* forms */
+label.f{display:block;font-size:13px;font-weight:600;color:var(--muted);margin:12px 0 6px}
+.inp{width:100%;padding:13px 14px;border-radius:12px;border:1.5px solid var(--line);background:#fff;font-size:16px;outline:none}
+.inp:focus{border-color:var(--brand2)}
+.inp.code{text-transform:uppercase;letter-spacing:4px;font-weight:700;font-family:"Baloo 2";font-size:22px;text-align:center}
+.hint{font-size:12.5px;color:var(--muted);margin-top:6px}
+
+/* host caller */
+.host-grid{display:grid;gap:14px}
+@media(min-width:900px){.host-grid{grid-template-columns:minmax(340px,420px) 1fr}.host-grid .card{margin-bottom:0}.col{display:flex;flex-direction:column;gap:14px}}
+.caller{text-align:center;background:linear-gradient(160deg,var(--brand),#3E37A6);color:#fff;position:relative;overflow:hidden}
+.caller h3{color:rgba(255,255,255,.7)}
+.bigball{width:170px;height:170px;margin:4px auto 10px;border-radius:50%;background:radial-gradient(circle at 34% 30%,#FFE2A3,var(--gold) 55%,#C9780A);display:grid;place-items:center;box-shadow:inset 0 -10px 0 rgba(0,0,0,.14),0 10px 30px rgba(0,0,0,.25);position:relative}
+.bigball::after{content:"";position:absolute;inset:26px;border-radius:50%;background:#fff;box-shadow:inset 0 2px 6px rgba(0,0,0,.15)}
+.bigball span{position:relative;z-index:1;font-family:"Baloo 2";font-weight:800;font-size:66px;line-height:1;color:var(--brand);margin-top:6px}
+.bigball.pop{animation:pop .45s cubic-bezier(.2,1.6,.4,1)}
+@keyframes pop{0%{transform:scale(.6) rotate(-25deg)}100%{transform:scale(1) rotate(0)}}
+.phrase{font-family:"Baloo 2";font-size:22px;font-weight:700;min-height:32px;color:var(--gold-soft)}
+.tally{font-size:13px;color:rgba(255,255,255,.75);margin:2px 0 10px}
+.recent{display:flex;justify-content:center;gap:6px;min-height:34px;margin-bottom:14px;flex-wrap:wrap}
+.chip{min-width:34px;height:34px;padding:0 6px;border-radius:999px;display:grid;place-items:center;font-family:"Baloo 2";font-weight:700;font-size:17px;background:rgba(255,255,255,.14);color:#fff}
+.chip.light{background:var(--gold-soft);color:#5B3500}
+.caller .btn.gold{font-size:19px;padding:16px;width:100%;box-shadow:0 6px 0 #B66F06}
+.caller .btn.gold:active{box-shadow:0 2px 0 #B66F06;transform:translateY(4px)}
+.toolrow{display:flex;gap:8px;margin-top:12px;justify-content:center;flex-wrap:wrap}
+.toolrow select,.toolrow .tg{background:rgba(255,255,255,.12);color:#fff;border:1px solid rgba(255,255,255,.2);border-radius:10px;padding:8px 10px;font-size:13.5px;font-weight:600}
+.toolrow select option{color:var(--ink)}
+.tg.on{background:#fff;color:var(--brand)}
+
+/* board */
+.board{display:grid;grid-template-columns:repeat(10,1fr);gap:5px}
+.board div{aspect-ratio:1;border-radius:9px;display:grid;place-items:center;font-family:"Baloo 2";font-weight:700;font-size:clamp(13px,2.6vw,19px);background:#F6F1E6;color:#B4AC98;transition:all .25s}
+.board div.c{background:var(--brand);color:#fff}
+.board div.last{background:var(--gold);color:#3D2400;transform:scale(1.08);box-shadow:0 4px 12px rgba(244,162,31,.5)}
+.board.mini{gap:3px}
+.board.mini div{border-radius:6px;font-size:13px}
+
+/* prizes */
+.prize{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px dashed var(--line)}
+.prize:first-of-type{border-top:0}
+.prize .pn{font-weight:700}
+.prize .pw{margin-left:auto;font-size:13px;color:var(--muted);text-align:right}
+.prize.won .pw{color:var(--green);font-weight:700}
+.trophy{width:30px;height:30px;border-radius:9px;display:grid;place-items:center;background:var(--gold-soft);font-size:15px;flex:none}
+.prize.won .trophy{background:var(--green-soft)}
+
+.claim{display:flex;align-items:center;gap:10px;padding:10px;border-radius:12px;background:var(--gold-soft);margin-bottom:8px;animation:slide .3s ease}
+@keyframes slide{from{opacity:0;transform:translateY(-6px)}}
+.claim .who{font-weight:700}
+.claim .what{font-size:13px;color:#7A5300}
+.claim .btn{margin-left:auto}
+.empty{color:var(--muted);font-size:13.5px;padding:6px 0}
+.people{display:flex;flex-wrap:wrap;gap:6px}
+.people span{padding:5px 10px;border-radius:999px;background:#F3F0FF;color:var(--brand);font-size:13px;font-weight:600}
+.verify-row{display:flex;gap:8px;margin-top:10px}
+.verify-row .inp{padding:10px 12px;font-size:15px}
+
+/* ticket */
+.ticket-wrap{background:linear-gradient(135deg,var(--pink),#F27A3B);border-radius:20px;padding:10px;box-shadow:0 10px 26px rgba(230,69,123,.25)}
+.ticket-head{display:flex;justify-content:space-between;align-items:center;color:#fff;padding:2px 6px 8px;font-weight:700;font-size:13.5px}
+.ticket-head .tn{font-family:"Baloo 2";font-size:18px}
+.ticket{display:grid;grid-template-columns:repeat(9,1fr);gap:4px;background:#fff;border-radius:14px;padding:6px}
+.cell{aspect-ratio:.82;border-radius:8px;display:grid;place-items:center;font-family:"Baloo 2";font-weight:700;font-size:clamp(17px,5.4vw,26px);background:#FFF4E2;color:var(--ink);position:relative;user-select:none}
+.cell.blank{background:repeating-linear-gradient(45deg,#FBEFF3,#FBEFF3 4px,#fff 4px,#fff 8px)}
+.cell.n{cursor:pointer}
+.cell.m{color:#fff;background:#FFF4E2}
+.cell.m::before{content:"";position:absolute;inset:10%;border-radius:50%;background:var(--brand);animation:dab .25s ease}
+.cell.m span{position:relative}
+@keyframes dab{from{transform:scale(.3);opacity:.2}}
+.cell.miss{box-shadow:inset 0 0 0 2px var(--gold)}
+.ticket.verify .cell.called{background:var(--green-soft);color:var(--green)}
+.ticket.verify .cell.n:not(.called){color:#C2BBA8}
+
+.last-strip{display:flex;align-items:center;gap:12px;background:var(--brand);color:#fff;border-radius:var(--r);padding:12px 14px;margin-bottom:12px}
+.last-strip .lb{width:62px;height:62px;border-radius:50%;flex:none;background:radial-gradient(circle at 34% 30%,#FFE2A3,var(--gold) 60%,#C9780A);display:grid;place-items:center}
+.last-strip .lb b{width:44px;height:44px;border-radius:50%;background:#fff;color:var(--brand);display:grid;place-items:center;font-family:"Baloo 2";font-size:24px;font-weight:800;padding-top:3px}
+.last-strip .meta{min-width:0}
+.last-strip .meta small{opacity:.7;font-size:12px;display:block}
+.last-strip .meta .ph{font-family:"Baloo 2";font-size:18px;font-weight:700;color:var(--gold-soft);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.last-strip .recent{justify-content:flex-start;margin:4px 0 0;min-height:0}
+.last-strip .chip{min-width:28px;height:28px;font-size:14px}
+.offline-note{font-size:13px;color:var(--muted);background:#fff;border:1px dashed var(--line);border-radius:14px;padding:10px 12px;margin-bottom:12px}
+
+.switches{display:flex;gap:8px;margin:12px 0}
+.sw{flex:1;display:flex;align-items:center;justify-content:space-between;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;font-size:13.5px;font-weight:600}
+.sw i{width:36px;height:22px;border-radius:999px;background:#DCD7E8;position:relative;flex:none;transition:background .2s}
+.sw i::after{content:"";position:absolute;top:3px;left:3px;width:16px;height:16px;border-radius:50%;background:#fff;transition:transform .2s;box-shadow:0 1px 2px rgba(0,0,0,.2)}
+.sw.on i{background:var(--green)}
+.sw.on i::after{transform:translateX(14px)}
+
+.claim-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.cbtn{padding:12px 10px;border-radius:13px;background:#fff;border:1.5px solid var(--line);font-weight:700;text-align:left;font-size:14px;line-height:1.2}
+.cbtn small{display:block;font-weight:500;color:var(--muted);font-size:12px;margin-top:3px}
+.cbtn.ready{border-color:var(--gold);background:var(--gold-soft)}
+.cbtn.done{opacity:.55}
+.cbtn.mine{border-color:var(--green);background:var(--green-soft);opacity:1}
+.cbtn.pending{border-color:var(--brand2);background:#EEECFF}
+.cbtn:disabled{cursor:default}
+
+/* modal + toast */
+.scrim{position:fixed;inset:0;background:rgba(20,17,45,.55);display:grid;place-items:center;padding:18px;z-index:50;animation:fade .15s}
+@keyframes fade{from{opacity:0}}
+.modal{background:#fff;border-radius:22px;padding:20px;width:100%;max-width:440px;box-shadow:0 20px 60px rgba(0,0,0,.3);max-height:90vh;overflow:auto}
+.modal h2{margin:0 0 6px;font-family:"Baloo 2";font-size:24px;color:var(--brand)}
+.modal p{margin:0 0 14px;color:var(--muted)}
+.modal .acts{display:flex;gap:8px;margin-top:16px}
+.modal .acts .btn{flex:1}
+.verdict{border-radius:12px;padding:10px 12px;font-weight:700;margin:12px 0 0}
+.verdict.y{background:var(--green-soft);color:var(--green)}
+.verdict.n{background:var(--red-soft);color:var(--red)}
+.toast{position:fixed;left:50%;bottom:calc(18px + env(safe-area-inset-bottom));transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 16px;border-radius:14px;font-weight:600;z-index:60;max-width:92vw;box-shadow:0 10px 30px rgba(0,0,0,.25);animation:up .25s ease;text-align:center}
+.toast.win{background:var(--green);font-size:17px}
+.toast.bad{background:var(--red)}
+@keyframes up{from{opacity:0;transform:translate(-50%,10px)}}
+.foot{display:flex;gap:8px;justify-content:center;margin-top:8px}
+.prize-sel{display:flex;flex-wrap:wrap;gap:6px;margin:8px 0}
+.prize-sel button{padding:7px 11px;border-radius:999px;border:1.5px solid var(--line);font-size:13px;font-weight:600;background:#fff}
+.prize-sel button.on{background:var(--brand);color:#fff;border-color:var(--brand)}
+</style>
+</head>
+<body>
+
+<!-- HOME -->
+<main id="home" class="wrap">
+  <div class="hero">
+    <div class="balls">
+      <div class="ball" style="background:#E6457B">7</div>
+      <div class="ball" style="background:#F4A21F">22</div>
+      <div class="ball" style="background:#4A43C4">56</div>
+      <div class="ball" style="background:#18946A">90</div>
+    </div>
+    <h1>Housie</h1>
+    <p>Housie for the team. One person hosts and calls numbers, and everyone else plays on their phone.</p>
+  </div>
+  <button class="role" id="goHost"><div class="ic" style="background:#EEECFF">🎙️</div><div><b>Host the game</b><span>Draw numbers, track prizes, verify claims</span></div></button>
+  <button class="role" id="goPlayer"><div class="ic" style="background:#FFE6B3">🎟️</div><div><b>Join as player</b><span>Get your ticket and mark numbers</span></div></button>
+  <div class="card" style="margin-top:16px">
+    <h3>How it works</h3>
+    <ol class="how">
+      <li>The host starts a game and gets a <b>4-letter game code</b>.</li>
+      <li>Players open this page, type their name and the code, and get a unique ticket.</li>
+      <li>The host draws numbers. Players tap numbers on their ticket to mark them.</li>
+      <li>Complete a pattern, then tap <b>Claim</b> (or shout "Housie!"). The host checks your ticket from your name.</li>
+    </ol>
+  </div>
+</main>
+
+<!-- HOST -->
+<main id="host" class="wrap wide hidden">
+  <div class="bar">
+    <div class="logo"><span class="dot">🎱</span>Housie · Host</div>
+    <span class="pill code" id="hCode">----</span>
+    <span class="pill" id="hLive"><span class="led"></span><span>Offline</span></span>
+  </div>
+  <div class="host-grid">
+    <div class="col">
+      <section class="card caller">
+        <h3 style="justify-content:center">Now calling</h3>
+        <div class="bigball" id="hBall"><span id="hNum">–</span></div>
+        <div class="phrase" id="hPhrase">Tap draw to begin</div>
+        <div class="tally"><b id="hCount">0</b> of 90 called</div>
+        <div class="recent" id="hRecent"></div>
+        <button class="btn gold" id="drawBtn">Draw number</button>
+        <div class="toolrow">
+          <select id="autoSel" aria-label="Auto draw">
+            <option value="0">Auto-draw: off</option>
+            <option value="6">Every 6 s</option>
+            <option value="10">Every 10 s</option>
+            <option value="15">Every 15 s</option>
+          </select>
+          <button class="tg on" id="voiceBtn">🔊 Voice on</button>
+          <button class="tg" id="undoBtn">↶ Undo</button>
+        </div>
+      </section>
+      <section class="card">
+        <h3>Claims <span class="count" id="hClaimCount"></span></h3>
+        <div id="hClaims"><div class="empty">Claims from players' phones show up here.</div></div>
+        <div class="verify-row">
+          <input class="inp" id="vName" placeholder="Check a ticket by player name" autocomplete="off">
+          <button class="btn primary sm" id="vBtn">Check</button>
+        </div>
+      </section>
+      <section class="card">
+        <h3>Prizes</h3>
+        <div id="hPrizes"></div>
+      </section>
+    </div>
+    <div class="col">
+      <section class="card">
+        <h3>Board <span class="count" id="hLeft"></span></h3>
+        <div class="board" id="hBoard"></div>
+      </section>
+      <section class="card">
+        <h3>Players online <span class="count" id="hPCount"></span></h3>
+        <div class="people" id="hPlayers"><div class="empty">Live player list appears when the page is shared with your team.</div></div>
+      </section>
+      <div class="foot">
+        <button class="btn ghost sm" id="newGameBtn">New game</button>
+        <button class="btn ghost sm" id="hExit">Exit to home</button>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- PLAYER JOIN -->
+<main id="pjoin" class="wrap hidden">
+  <div class="bar"><div class="logo"><span class="dot">🎟️</span>Join game</div><span class="pill" id="pjLive"><span class="led"></span><span>Offline</span></span></div>
+  <div class="card">
+    <label class="f" for="pName">Your name</label>
+    <input class="inp" id="pName" placeholder="e.g. Priya S" maxlength="28" autocomplete="off">
+    <label class="f" for="pCode">Game code</label>
+    <input class="inp code" id="pCode" placeholder="ABCD" maxlength="4" autocomplete="off">
+    <div class="hint" id="pCodeHint">Ask the host for the 4-letter code.</div>
+    <button class="btn primary block" id="joinBtn" style="margin-top:16px">Get my ticket</button>
+    <div class="hint" style="margin-top:10px">Your ticket comes from your name plus the code. Use the same spelling every time so the host can check it.</div>
+  </div>
+  <div class="foot"><button class="btn ghost sm" id="pjBack">Back</button></div>
+</main>
+
+<!-- PLAYER GAME -->
+<main id="pgame" class="wrap hidden">
+  <div class="bar">
+    <div class="logo"><span class="dot">🎟️</span><span id="pHello">Player</span></div>
+    <span class="pill" id="pLive"><span class="led"></span><span>Offline</span></span>
+  </div>
+  <div class="last-strip hidden" id="pLast">
+    <div class="lb"><b id="pLastNum">–</b></div>
+    <div class="meta"><small>Last called · <span id="pCalledCount">0</span>/90</small><div class="ph" id="pLastPhrase">Waiting for host…</div><div class="recent" id="pRecent"></div></div>
+  </div>
+  <div class="offline-note" id="pOffline">Listen for the host's calls and tap the numbers on your ticket. Numbers show here live when the host's page is connected.</div>
+  <div class="ticket-wrap">
+    <div class="ticket-head"><span>HOUSIE · <span id="pGameCode"></span></span><span class="tn">#<span id="pTid"></span></span></div>
+    <div class="ticket" id="pTicket"></div>
+  </div>
+  <div class="switches">
+    <button class="sw" id="autoMarkSw">Auto-mark <i></i></button>
+    <button class="sw" id="boardSw">Called board <i></i></button>
+  </div>
+  <div class="card hidden" id="pBoardCard"><div class="board mini" id="pBoard"></div></div>
+  <div class="card">
+    <h3>Claim a prize</h3>
+    <div class="claim-grid" id="pClaims"></div>
+    <div class="hint" id="pClaimHint" style="margin-top:10px"></div>
+  </div>
+  <div class="foot">
+    <button class="btn ghost sm" id="clearMarks">Clear marks</button>
+    <button class="btn ghost sm" id="pLeave">Leave game</button>
+  </div>
+</main>
+
+<script>
+(function(){
+"use strict";
+/* ---------- helpers ---------- */
+const $=id=>document.getElementById(id);
+function el(tag,cls,txt){const e=document.createElement(tag);if(cls)e.className=cls;if(txt!=null)e.textContent=txt;return e;}
+const store={get(k){try{return JSON.parse(localStorage.getItem(k));}catch(e){return null;}},set(k,v){try{localStorage.setItem(k,JSON.stringify(v));}catch(e){}},del(k){try{localStorage.removeItem(k);}catch(e){}}};
+const PRIZES=[{k:'early5',n:'Early Five',d:'Any 5 numbers'},{k:'top',n:'Top Line',d:'All of row 1'},{k:'middle',n:'Middle Line',d:'All of row 2'},{k:'bottom',n:'Bottom Line',d:'All of row 3'},{k:'corners',n:'Four Corners',d:'Ends of rows 1 & 3'},{k:'full',n:'Full House',d:'All 15 numbers'}];
+const PNAME=Object.fromEntries(PRIZES.map(p=>[p.k,p.n]));
+const CALLS={1:"Kelly's eye",2:"One little duck",3:"Cup of tea",4:"Knock at the door",5:"Man alive",6:"Half a dozen",7:"Lucky seven",8:"Garden gate",9:"Doctor's orders",10:"Big fat hen",11:"Legs eleven",12:"One dozen",13:"Unlucky for some",14:"Valentine's Day",15:"Independence Day",16:"Sweet sixteen",17:"Dancing queen",18:"Voting age",20:"One score",21:"Key of the door",22:"Two little ducks",25:"Quarter century",26:"Republic Day",27:"Gateway to heaven",30:"Flirty thirty",33:"All the threes",36:"Three dozen",40:"Naughty forty",44:"All the fours",45:"Halfway there",50:"Half century",55:"All the fives",59:"Just retired",60:"Five dozen",66:"All the sixes",69:"Ulta pulta",72:"Six dozen",75:"Diamond jubilee",77:"Two hockey sticks",80:"Eight and blank",84:"Seven dozen",88:"Two fat ladies",89:"Nearly there",90:"Top of the house"};
+function phrase(n){return CALLS[n]||(n<10?"Single number "+n:String(n).split('').join(' and ')+", "+n);}
+function speakText(n){return n<10?(CALLS[n]?CALLS[n]+". ":"")+"Number "+n:(CALLS[n]?CALLS[n]+". ":"")+String(n).split('').join(' ')+". "+n;}
+function toast(msg,kind,ms){const t=el('div','toast'+(kind?' '+kind:''),msg);document.body.appendChild(t);setTimeout(()=>t.remove(),ms||2600);}
+function modal(build){return new Promise(res=>{const s=el('div','scrim');const m=el('div','modal');s.appendChild(m);const close=v=>{s.remove();res(v);};build(m,close);s.addEventListener('click',e=>{if(e.target===s)close(null);});document.body.appendChild(s);});}
+function confirmBox(title,body,yes,no,danger){return modal((m,close)=>{m.appendChild(el('h2',null,title));m.appendChild(el('p',null,body));const a=el('div','acts');const b1=el('button','btn ghost',no||'Cancel');const b2=el('button','btn '+(danger?'danger':'primary'),yes||'OK');b1.onclick=()=>close(false);b2.onclick=()=>close(true);a.append(b1,b2);m.appendChild(a);});}
+function show(id){['home','host','pjoin','pgame'].forEach(x=>$(x).classList.toggle('hidden',x!==id));window.scrollTo(0,0);}
+function setLive(pillId,on,label){const p=$(pillId);p.classList.toggle('on',!!on);p.lastElementChild.textContent=label||(on?'Live':'Offline');}
+
+/* ---------- ticket generation (deterministic from code + name) ---------- */
+function hash(str){let h1=0xdeadbeef,h2=0x41c6ce57;for(let i=0;i<str.length;i++){const c=str.charCodeAt(i);h1=Math.imul(h1^c,2654435761);h2=Math.imul(h2^c,1597334677);}h1=Math.imul(h1^(h1>>>16),2246822507)^Math.imul(h2^(h2>>>13),3266489909);h2=Math.imul(h2^(h2>>>16),2246822507)^Math.imul(h1^(h1>>>13),3266489909);return 4294967296*(2097151&h2)+(h1>>>0);}
+function mulberry(a){return function(){a|=0;a=a+0x6D2B79F5|0;let t=Math.imul(a^a>>>15,1|a);t=t+Math.imul(t^t>>>7,61|t)^t;return((t^t>>>14)>>>0)/4294967296;};}
+function normName(n){return String(n||'').trim().replace(/\s+/g,' ').toLowerCase();}
+function makeTicket(code,name){
+  const key=String(code).toUpperCase()+'|'+normName(name);
+  const h=hash(key);const r=mulberry(h%4294967296);const ri=n=>Math.floor(r()*n);
+  const shuf=a=>{for(let i=a.length-1;i>0;i--){const j=ri(i+1);[a[i],a[j]]=[a[j],a[i]];}return a;};
+  for(let t=0;t<20000;t++){
+    const counts=Array(9).fill(1);let extra=6;
+    while(extra>0){const c=ri(9);if(counts[c]<3){counts[c]++;extra--;}}
+    const lay=[Array(9).fill(false),Array(9).fill(false),Array(9).fill(false)];const rows=[0,0,0];
+    for(let c=0;c<9;c++){const rs=shuf([0,1,2]);for(let i=0;i<counts[c];i++){lay[rs[i]][c]=true;rows[rs[i]]++;}}
+    if(rows[0]!==5||rows[1]!==5||rows[2]!==5)continue;
+    const grid=[Array(9).fill(0),Array(9).fill(0),Array(9).fill(0)];
+    for(let c=0;c<9;c++){
+      const lo=c===0?1:c*10,hi=c===8?90:c*10+9;const pool=[];for(let n=lo;n<=hi;n++)pool.push(n);
+      const pick=shuf(pool).slice(0,counts[c]).sort((a,b)=>a-b);let i=0;
+      for(let rr=0;rr<3;rr++)if(lay[rr][c])grid[rr][c]=pick[i++];
+    }
+    return {grid,id:(h%1679616).toString(36).toUpperCase().padStart(4,'0')};
+  }
+  return null;
+}
+function ticketNums(g){return g.flat().filter(Boolean);}
+function rowNums(g,r){return g[r].filter(Boolean);}
+function checkPrize(g,k,set){
+  const has=n=>set.has(n);
+  switch(k){
+    case 'early5':return ticketNums(g).filter(has).length>=5;
+    case 'top':return rowNums(g,0).every(has);
+    case 'middle':return rowNums(g,1).every(has);
+    case 'bottom':return rowNums(g,2).every(has);
+    case 'corners':{const a=rowNums(g,0),b=rowNums(g,2);return [a[0],a[a.length-1],b[0],b[b.length-1]].every(has);}
+    case 'full':return ticketNums(g).every(has);
+  }return false;
+}
+function renderTicket(container,g,opts){
+  container.innerHTML='';
+  g.forEach(row=>row.forEach(n=>{
+    const c=el('div','cell'+(n?' n':' blank'));
+    if(n){const s=el('span',null,String(n));c.appendChild(s);c.dataset.n=n;
+      if(opts&&opts.marked&&opts.marked.has(n))c.classList.add('m');
+      if(opts&&opts.called&&opts.called.has(n))c.classList.add('called');}
+    container.appendChild(c);
+  }));
+}
+function renderBoard(container,called,last){
+  if(!container.children.length){for(let n=1;n<=90;n++)container.appendChild(el('div',null,String(n)));}
+  const set=new Set(called);
+  for(let n=1;n<=90;n++){const d=container.children[n-1];d.classList.toggle('c',set.has(n));d.classList.toggle('last',n===last);}
+}
+function chips(container,list,light){container.innerHTML='';list.forEach(n=>container.appendChild(el('div','chip'+(light?' light':''),String(n))));}
+
+/* ---------- live room (lights up when available) ---------- */
+let room=null;const roomReady=[];
+function onRoom(fn){room?fn(room):roomReady.push(fn);}
+(async()=>{try{if(window.claude&&window.claude.use){const r=await window.claude.use('room');if(r){room=r;roomReady.splice(0).forEach(f=>{try{f(r);}catch(e){}});}}}catch(e){}})();
+let connected=false;const connListeners=[];
+onRoom(r=>{r.onConnection(c=>{connected=c;connListeners.forEach(f=>f(c));},()=>{connected=false;connListeners.forEach(f=>f(false));});});
+function onConn(f){connListeners.push(f);f(connected);}
+
+/* =====================================================================
+   HOST
+   ===================================================================== */
+const HKEY='tambola-host-v1';
+let H=null,autoTimer=null,voice=true,hostPeers=[],hostWired=false,canEmit=true;
+const pendingClaims=new Map(); // key -> {peer,name,prize,at,tid}
+function newCode(){const a='ABCDEFGHJKMNPQRSTUVWXYZ23456789';let s='';for(let i=0;i<4;i++)s+=a[Math.floor(Math.random()*a.length)];return s;}
+function freshHost(){return {code:newCode(),called:[],prizes:{},bogeys:[],handled:[],epoch:Date.now()};}
+function saveHost(){store.set(HKEY,H);}
+function startHost(){
+  H=store.get(HKEY)||freshHost();if(!H.handled)H.handled=[];if(!H.bogeys)H.bogeys=[];
+  show('host');store.set('tambola-mode','host');renderHost();
+  if(!hostWired){hostWired=true;wireHostRoom();}
+  emitState();
+}
+function last(){return H.called[H.called.length-1];}
+function renderHost(){
+  $('hCode').textContent=H.code;
+  const l=last();$('hNum').textContent=l||'–';
+  $('hPhrase').textContent=l?phrase(l):'Tap draw to begin';
+  $('hCount').textContent=H.called.length;
+  $('hLeft').textContent=(90-H.called.length)+' left';
+  chips($('hRecent'),H.called.slice(-6,-1).reverse());
+  renderBoard($('hBoard'),H.called,l);
+  $('drawBtn').disabled=H.called.length>=90;
+  $('drawBtn').textContent=H.called.length>=90?'All numbers called':'Draw number';
+  // prizes
+  const pz=$('hPrizes');pz.innerHTML='';
+  PRIZES.forEach(p=>{const w=H.prizes[p.k];const row=el('div','prize'+(w?' won':''));row.appendChild(el('div','trophy',w?'🏆':'🎁'));const tx=el('div');tx.appendChild(el('div','pn',p.n));tx.appendChild(el('div','hint',p.d));row.appendChild(tx);row.appendChild(el('div','pw',w?w:'Open'));pz.appendChild(row);});
+  renderClaims();
+}
+function renderClaims(){
+  const box=$('hClaims');box.innerHTML='';
+  const list=[...pendingClaims.values()].filter(c=>!H.handled.includes(c.key));
+  $('hClaimCount').textContent=list.length?list.length+' waiting':'';
+  if(!list.length){box.appendChild(el('div','empty','Claims from players\' phones show up here.'));return;}
+  list.forEach(c=>{const r=el('div','claim');const t=el('div');t.appendChild(el('div','who',c.name));t.appendChild(el('div','what','claims '+(PNAME[c.prize]||c.prize)));r.appendChild(t);const b=el('button','btn primary sm','Verify');b.onclick=()=>verify(c.name,c.prize,c.key);r.appendChild(b);box.appendChild(r);});
+}
+function draw(){
+  if(H.called.length>=90)return stopAuto();
+  const left=[];const s=new Set(H.called);for(let n=1;n<=90;n++)if(!s.has(n))left.push(n);
+  const n=left[Math.floor(Math.random()*left.length)];
+  H.called.push(n);saveHost();renderHost();
+  const b=$('hBall');b.classList.remove('pop');void b.offsetWidth;b.classList.add('pop');
+  if(voice)say(speakText(n));
+  emitState();
+}
+function say(t){try{const s=window.speechSynthesis;if(!s)return;s.cancel();const u=new SpeechSynthesisUtterance(t);u.lang='en-IN';u.rate=.92;const v=s.getVoices().find(v=>/en[-_]IN/i.test(v.lang));if(v)u.voice=v;s.speak(u);}catch(e){}}
+function stopAuto(){if(autoTimer){clearInterval(autoTimer);autoTimer=null;}$('autoSel').value='0';}
+function emitState(){
+  if(!room||!H)return;
+  const data={code:H.code,called:H.called,prizes:H.prizes,bogeys:H.bogeys.slice(-8),epoch:H.epoch};
+  room.emit('state',data).then(()=>{canEmit=true;},e=>{if(e&&e.code==='not_permitted'){canEmit=false;setLive('hLive',false,'Sync needs edit access');}});
+}
+function wireHostRoom(){
+  onConn(c=>{if($('host').classList.contains('hidden'))return;setLive('hLive',c&&canEmit,c?(canEmit?'Live':'Sync needs edit access'):'Offline');});
+  onRoom(r=>{
+    r.presence({role:'host'}).catch(()=>{});
+    r.onPeers(ch=>{
+      hostPeers=ch.peers;
+      if(ch.joined.length)emitState();
+      if(!H)return;
+      const names=[];
+      ch.peers.forEach(p=>{const pr=p.presence||{};if(pr.role==='player'&&pr.code===H.code&&pr.name){names.push(String(pr.name).slice(0,28));
+        if(pr.claim&&pr.claim.prize&&pr.claim.at){const key=p.peer+'|'+pr.claim.prize+'|'+pr.claim.at;if(!pendingClaims.has(key)&&!H.prizes[pr.claim.prize]){pendingClaims.set(key,{key,name:String(pr.name).slice(0,28),prize:pr.claim.prize,at:pr.claim.at});if(!H.handled.includes(key)){toast('🙋 '+String(pr.name).slice(0,28)+' claims '+(PNAME[pr.claim.prize]||'a prize'));}}}}
+      });
+      const box=$('hPlayers');box.innerHTML='';
+      $('hPCount').textContent=names.length?names.length:'';
+      if(!names.length)box.appendChild(el('div','empty','No players connected yet. Share the page link and the game code.'));
+      [...new Set(names)].sort().forEach(n=>box.appendChild(el('span',null,n)));
+      renderClaims();
+    });
+    setInterval(emitState,8000);
+  });
+}
+function verify(name,prize,claimKey){
+  name=String(name||'').trim();if(!name){toast('Type a player name');return;}
+  const t=makeTicket(H.code,name);const called=new Set(H.called);
+  let sel=prize||PRIZES.find(p=>!H.prizes[p.k])?.k||'full';
+  modal((m,close)=>{
+    m.appendChild(el('h2',null,'Check ticket'));
+    const sub=el('p',null,name+' · Ticket #'+t.id+' · game '+H.code);m.appendChild(sub);
+    const tw=el('div','ticket-wrap');const tk=el('div','ticket verify');tw.appendChild(tk);m.appendChild(tw);
+    renderTicket(tk,t.grid,{called});
+    const ps=el('div','prize-sel');m.appendChild(ps);
+    const verdict=el('div','verdict');m.appendChild(verdict);
+    const acts=el('div','acts');const bBog=el('button','btn danger','Bogey');const bAw=el('button','btn ok','Award prize');acts.append(bBog,bAw);m.appendChild(acts);
+    const cl=el('button','btn ghost block','Close');cl.style.marginTop='8px';cl.onclick=()=>close();m.appendChild(cl);
+    const draw=()=>{ps.innerHTML='';PRIZES.forEach(p=>{const b=el('button',p.k===sel?'on':'',p.n+(H.prizes[p.k]?' ✓':''));b.onclick=()=>{sel=p.k;draw();};ps.appendChild(b);});
+      const ok=checkPrize(t.grid,sel,called);const taken=H.prizes[sel];
+      verdict.className='verdict '+(ok&&!taken?'y':'n');
+      verdict.textContent=taken?(PNAME[sel]+' already won by '+taken):(ok?'✓ Valid '+PNAME[sel]+'!':'✗ Not complete. That\'s a bogey for '+PNAME[sel]+'.');
+      bAw.disabled=!ok||!!taken;};
+    draw();
+    bAw.onclick=()=>{H.prizes[sel]=name;if(claimKey)H.handled.push(claimKey);saveHost();renderHost();emitState();toast('🏆 '+PNAME[sel]+' goes to '+name,'win');if(voice)say(PNAME[sel]+' goes to '+name+'!');close();};
+    bBog.onclick=()=>{H.bogeys.push({name,prize:sel,at:Date.now()});if(claimKey)H.handled.push(claimKey);saveHost();renderHost();emitState();toast('Bogey for '+name,'bad');close();};
+  });
+}
+$('drawBtn').onclick=draw;
+$('autoSel').onchange=e=>{const s=+e.target.value;if(autoTimer){clearInterval(autoTimer);autoTimer=null;}if(s){draw();autoTimer=setInterval(draw,s*1000);}};
+$('voiceBtn').onclick=e=>{voice=!voice;e.currentTarget.classList.toggle('on',voice);e.currentTarget.textContent=voice?'🔊 Voice on':'🔇 Voice off';if(!voice)try{speechSynthesis.cancel();}catch(_){}};
+$('undoBtn').onclick=async()=>{if(!H.called.length)return;const n=last();if(await confirmBox('Undo last number?','Remove '+n+' from the called list.','Undo'))
+  {H.called.pop();saveHost();renderHost();emitState();}};
+$('vBtn').onclick=()=>verify($('vName').value);
+$('vName').addEventListener('keydown',e=>{if(e.key==='Enter')verify($('vName').value);});
+$('newGameBtn').onclick=async()=>{if(await confirmBox('Start a new game?','This clears the board and prizes and creates a new game code. Players will need to rejoin with the new code.','New game','Cancel',true)){stopAuto();H=freshHost();pendingClaims.clear();saveHost();renderHost();emitState();toast('New game · code '+H.code);}};
+$('hExit').onclick=()=>{stopAuto();store.del('tambola-mode');show('home');};
+
+/* =====================================================================
+   PLAYER
+   ===================================================================== */
+const PKEY='tambola-player-v1';
+let P=null,live=null,playerWired=false,lastAwardSeen={},lastBogeySeen=0;
+function startJoin(){
+  const s=store.get(PKEY);show('pjoin');
+  if(s){$('pName').value=s.name||'';if(!$('pCode').value)$('pCode').value=s.code||'';}
+  if(live&&live.code&&!$('pCode').value){$('pCode').value=live.code;}
+  updateCodeHint();
+  if(!playerWired){playerWired=true;wirePlayerRoom();}
+}
+function updateCodeHint(){$('pCodeHint').textContent=live&&live.code?('Host\'s current game code: '+live.code):'Ask the host for the 4-letter code.';}
+function join(){
+  const name=$('pName').value.trim().replace(/\s+/g,' ');const code=$('pCode').value.trim().toUpperCase();
+  if(name.length<2){toast('Enter your name');return;}
+  if(!/^[A-Z0-9]{4}$/.test(code)){toast('Enter the 4-letter game code');return;}
+  const prev=store.get(PKEY);
+  const same=prev&&prev.code===code&&normName(prev.name)===normName(name);
+  P={name,code,marks:same?prev.marks:[],auto:prev?!!prev.auto:false,showBoard:prev?!!prev.showBoard:false,claims:same&&prev.claims?prev.claims:{}};
+  enterGame();
+}
+function savePlayer(){store.set(PKEY,P);}
+let T=null;
+function enterGame(){
+  T=makeTicket(P.code,P.name);savePlayer();store.set('tambola-mode','player');
+  show('pgame');$('pHello').textContent=P.name;$('pGameCode').textContent=P.code;$('pTid').textContent=T.id;
+  renderTicket($('pTicket'),T.grid,{marked:new Set(P.marks)});
+  $('autoMarkSw').classList.toggle('on',P.auto);$('boardSw').classList.toggle('on',P.showBoard);
+  if(!playerWired){playerWired=true;wirePlayerRoom();}
+  publishPresence();renderPlayer();
+}
+function liveForMe(){return live&&P&&live.code===P.code?live:null;}
+function renderPlayer(){
+  if(!P||$('pgame').classList.contains('hidden'))return;
+  const L=liveForMe();const called=L?L.called:[];const cset=new Set(called);
+  $('pLast').classList.toggle('hidden',!L);$('pOffline').classList.toggle('hidden',!!L);
+  if(live&&live.code&&live.code!==P.code){$('pOffline').classList.remove('hidden');$('pOffline').textContent='The host is running game '+live.code+' now. Tap "Leave game" and rejoin with the new code.';}
+  else $('pOffline').textContent='Listen for the host\'s calls and tap the numbers on your ticket. Numbers show here live when the host\'s page is connected.';
+  if(L){const l=called[called.length-1];$('pLastNum').textContent=l||'–';$('pLastPhrase').textContent=l?phrase(l):'Waiting for first number…';$('pCalledCount').textContent=called.length;chips($('pRecent'),called.slice(-6,-1).reverse());}
+  // auto mark
+  if(L&&P.auto){let ch=false;ticketNums(T.grid).forEach(n=>{if(cset.has(n)&&!P.marks.includes(n)){P.marks.push(n);ch=true;}});if(ch)savePlayer();}
+  const mset=new Set(P.marks);
+  [...$('pTicket').children].forEach(c=>{const n=+c.dataset.n;if(!n)return;c.classList.toggle('m',mset.has(n));c.classList.toggle('miss',!!L&&cset.has(n)&&!mset.has(n));});
+  $('pBoardCard').classList.toggle('hidden',!P.showBoard);
+  if(P.showBoard)renderBoard($('pBoard'),called,called[called.length-1]);
+  // claims
+  const box=$('pClaims');box.innerHTML='';
+  const effective=new Set(L?P.marks.filter(n=>cset.has(n)):P.marks);
+  const prizes=L?L.prizes||{}:{};
+  PRIZES.forEach(p=>{
+    const w=prizes[p.k];const mine=w&&normName(w)===normName(P.name);const ready=!w&&checkPrize(T.grid,p.k,effective);const pend=!w&&P.pending===p.k;
+    const b=el('button','cbtn'+(mine?' mine':w?' done':pend?' pending':ready?' ready':''));
+    b.appendChild(document.createTextNode((mine?'🏆 ':ready&&!pend?'✨ ':'')+p.n));
+    b.appendChild(el('small',null,mine?'You won this!':w?'Won by '+w:pend?'Claim sent… waiting for host':ready?'Ready to claim!':p.d));
+    b.disabled=!!w||pend;b.onclick=()=>claim(p.k,ready);box.appendChild(b);
+  });
+  $('pClaimHint').textContent=room&&connected?'Claims go straight to the host\'s screen.':'Not connected live. Shout "Housie!" and tell the host your name to claim.';
+}
+async function claim(k,ready){
+  if(!ready){const ok=await confirmBox('Not complete yet','Your marked numbers don\'t complete '+PNAME[k]+' yet. A wrong claim is a bogey. Claim anyway?','Claim anyway','Cancel',true);if(!ok)return;}
+  if(!(room&&connected)){toast('Shout "Housie!" and tell the host: '+P.name+' · '+PNAME[k],null,4000);return;}
+  P.pending=k;savePlayer();publishPresence({prize:k,at:Date.now()});renderPlayer();toast('Claim sent for '+PNAME[k]);
+}
+function publishPresence(claimObj){
+  if(!room||!P)return;
+  const patch={role:'player',name:P.name.slice(0,28),code:P.code,tid:T?T.id:''};
+  if(claimObj!==undefined)patch.claim=claimObj;
+  room.presence(patch).catch(()=>{});
+}
+function wirePlayerRoom(){
+  onConn(c=>{['pjLive','pLive'].forEach(id=>setLive(id,c&&!!live,c?(live?'Live':'Connected'):'Offline'));renderPlayer();});
+  onRoom(r=>{
+    r.on('state',msg=>{
+      const d=msg&&msg.data;if(!d||typeof d!=='object'||!Array.isArray(d.called))return;
+      live={code:String(d.code||'').toUpperCase().slice(0,4),called:d.called.filter(n=>Number.isInteger(n)&&n>=1&&n<=90),prizes:(d.prizes&&typeof d.prizes==='object')?d.prizes:{},bogeys:Array.isArray(d.bogeys)?d.bogeys:[]};
+      ['pjLive','pLive'].forEach(id=>setLive(id,true,'Live'));
+      if(!$('pjoin').classList.contains('hidden')){if(!$('pCode').value)$('pCode').value=live.code;updateCodeHint();}
+      if(P&&live.code===P.code){
+        // award / bogey feedback
+        if(P.pending&&live.prizes[P.pending]){const mine=normName(live.prizes[P.pending])===normName(P.name);toast(mine?'🏆 You won '+PNAME[P.pending]+'!':PNAME[P.pending]+' went to '+live.prizes[P.pending],mine?'win':null,4000);P.pending=null;savePlayer();publishPresence(null);}
+        Object.entries(live.prizes).forEach(([k,w])=>{if(normName(w)===normName(P.name)&&!lastAwardSeen[k]){lastAwardSeen[k]=1;}});
+        live.bogeys.forEach(b=>{if(b&&normName(b.name)===normName(P.name)&&b.at>lastBogeySeen&&b.at>(P.joinedAt||0)){lastBogeySeen=b.at;toast('❌ Bogey! The host rejected your '+(PNAME[b.prize]||'')+' claim','bad',4000);if(P.pending===b.prize){P.pending=null;savePlayer();publishPresence(null);}}});
+      }
+      renderPlayer();
+    });
+    if(P)publishPresence(null);
+  });
+}
+$('pTicket').addEventListener('click',e=>{const c=e.target.closest('.cell.n');if(!c)return;const n=+c.dataset.n;const i=P.marks.indexOf(n);if(i>=0)P.marks.splice(i,1);else P.marks.push(n);savePlayer();renderPlayer();if(navigator.vibrate)try{navigator.vibrate(12);}catch(_){}});
+$('autoMarkSw').onclick=()=>{P.auto=!P.auto;$('autoMarkSw').classList.toggle('on',P.auto);savePlayer();renderPlayer();if(P.auto&&!liveForMe())toast('Auto-mark works when the host is connected live');};
+$('boardSw').onclick=()=>{P.showBoard=!P.showBoard;$('boardSw').classList.toggle('on',P.showBoard);savePlayer();renderPlayer();};
+$('clearMarks').onclick=async()=>{if(await confirmBox('Clear all marks?','Unmarks every number on your ticket.','Clear','Cancel',true)){P.marks=[];savePlayer();renderPlayer();}};
+$('pLeave').onclick=async()=>{if(await confirmBox('Leave this game?','You can rejoin later with the same name and code to get the same ticket back.','Leave','Stay')){if(room)room.presence({role:null,name:null,code:null,tid:null,claim:null}).catch(()=>{});store.del('tambola-mode');P=null;show('home');}};
+$('joinBtn').onclick=()=>{join();if(P)P.joinedAt=Date.now();};
+$('pCode').addEventListener('keydown',e=>{if(e.key==='Enter')$('joinBtn').click();});
+$('pjBack').onclick=()=>show('home');
+
+/* ---------- home ---------- */
+$('goHost').onclick=startHost;
+$('goPlayer').onclick=startJoin;
+const mode=store.get('tambola-mode');
+if(mode==='host'&&store.get(HKEY))startHost();
+else if(mode==='player'&&store.get(PKEY)&&store.get(PKEY).name){P=store.get(PKEY);P.pending=null;enterGame();}
+})();
+</script>
+</body>
+</html>
