@@ -43,7 +43,7 @@ The free Spark plan allows 100 phones connected at once, which is plenty for off
 
 ## Hosting on GitHub Pages
 
-In **Settings → Pages**, set the source to the `main` branch, root folder. The game will be live at `https://nikunj1980.github.io/housie/`.
+In **Settings → Pages**, set the source to the `main` branch, root folder. The game will be live at `https://productdesign-alliance.github.io/housie/`.
 
 ## Notes
 
