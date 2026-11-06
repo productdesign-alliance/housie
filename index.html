@@ -410,14 +410,26 @@ const Sync=(function(){
         await loadScript('https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js');
         firebase.initializeApp(cfg);db=firebase.database();
         db.ref('.info/connected').on('value',s=>setConn(s.val()===true));
-        ready('fb');return;
+        ready('fb');cleanupOld();return;
       }catch(e){console.warn('Firebase unavailable',e);}
     }
     try{if(window.claude&&window.claude.use){const r=await window.claude.use('room');if(r){room=r;r.onConnection(setConn,()=>setConn(false));ready('room');}}}catch(e){}
   })();
 
+  /* ---- auto-cleanup: delete games with no host activity for 30 minutes ----
+     The host refreshes state.updated every 5 minutes while the host screen is open,
+     so only finished or abandoned games are removed. Runs whenever anyone opens the page. */
+  const STALE_MS=30*60*1000;
+  function cleanupOld(){
+    try{
+      db.ref('games').orderByChild('state/updated').endAt(Date.now()-STALE_MS).limitToFirst(50).once('value')
+        .then(snap=>{const upd={};snap.forEach(c=>{const u=c.child('state/updated').val();if(!u||u<Date.now()-STALE_MS)upd[c.key]=null;});if(Object.keys(upd).length)return db.ref('games').update(upd);})
+        .catch(e=>console.warn('Cleanup skipped',e));
+    }catch(e){}
+  }
+
   /* ---- host ---- */
-  let hostOff=null,lastState=null,roomTimer=null;
+  let hostOff=null,lastState=null,roomTimer=null,beatTimer=null;
   S.hostWatch=function(code,onPlayers){
     if(hostOff){hostOff();hostOff=null;}
     if(S.mode==='fb'){
@@ -436,6 +448,7 @@ const Sync=(function(){
   };
   S.hostPublish=function(state){
     lastState=state;
+    if(S.mode==='fb'&&!beatTimer)beatTimer=setInterval(()=>{if(lastState)db.ref('games/'+lastState.code+'/state/updated').set(firebase.database.ServerValue.TIMESTAMP).catch(()=>{});},5*60*1000);
     if(S.mode==='fb')return db.ref('games/'+state.code+'/state').set(Object.assign({},state,{updated:firebase.database.ServerValue.TIMESTAMP})).catch(e=>{console.warn(e);toast('Sync failed: check Firebase database rules','bad',4000);});
     if(S.mode==='room')return room.emit('state',state).catch(()=>{});
   };

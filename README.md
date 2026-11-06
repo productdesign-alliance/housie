@@ -21,6 +21,8 @@ A mobile-friendly Housie (Tambola) game for office teams. It's a single `index.h
    {
      "rules": {
        "games": {
+         ".read": true,
+         ".indexOn": ["state/updated"],
          "$code": { ".read": true, ".write": true }
        }
      }
@@ -50,3 +52,4 @@ In **Settings → Pages**, set the source to the `main` branch, root folder. The
 - Tickets come from **game code + player name**. The same spelling always gives the same ticket, so the host can rebuild any ticket to check a claim.
 - Without Firebase config, the game still works without live sync: players listen to the host and mark their tickets by hand.
 - Progress and marks are also saved on each phone, so refreshing the page doesn't lose anything.
+- **Auto-cleanup:** a game is deleted from Firebase 30 minutes after the host's last activity. The host screen keeps its game alive while it's open, and the cleanup runs whenever anyone opens the page (Realtime Database has no built-in expiry on the free plan).
